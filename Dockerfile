@@ -146,6 +146,8 @@ hostname-one
    23  yum install httpd -y
    24  systemctl restart httpd
    25  systemctl enable httpd
+
+   pate one ip address
 -----------------------
 
 terraform vpc
