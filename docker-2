@@ -1,0 +1,400 @@
+Create EC2 instance for terraform:
+
+    1  sudo dnf install -y dnf-plugins-core
+    2  sudo dnf config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+    3  sudo dnf -y install terraform
+    4  terraform -v
+    5  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    6  unzip awscliv2.zip
+    7  sudo ./aws/install
+    8  aws configure
+    9  cd .aws/
+   10  ll
+   11  cat config
+   12  cat credentials
+   13  cd
+   14  mkdir terra
+   15  cd terra/
+   16  vim ec2.tf
+
+***********************************************************************************************************************
+resource "aws_security_group" "web_access" {
+  name        = "web_access"
+  description = "Allow traffic"
+ 
+  tags = {
+    Name = "web_access"
+  }
+}
+ 
+resource "aws_vpc_security_group_ingress_rule" "allow_http" {
+  security_group_id = aws_security_group.web_access.id
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 80
+  ip_protocol       = "tcp"
+  to_port           = 80
+}
+ 
+resource "aws_vpc_security_group_ingress_rule" "allow_ssh" {
+  security_group_id = aws_security_group.web_access.id
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 22
+  ip_protocol       = "tcp"
+  to_port           = 22
+}
+ 
+resource "aws_vpc_security_group_ingress_rule" "allow_https" {
+  security_group_id = aws_security_group.web_access.id
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 443
+  ip_protocol       = "tcp"
+  to_port           = 443
+}
+resource "aws_vpc_security_group_egress_rule" "allow_all_taraffic" {
+  security_group_id = aws_security_group.web_access.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+}
+ 
+#ec2 instance code starts here
+resource "aws_instance" "custom-server" {
+  ami               = "ami-05ffe3c48a9991133"
+  availability_zone = "us-east-1a"
+  instance_type     = "t2.micro"
+  security_groups   = ["${aws_security_group.web_access.name}"]
+  key_name          = "lti-mahape-key"
+  #root disk
+  root_block_device {
+    volume_size           = "25"
+    volume_type           = "gp2"
+    delete_on_termination = true
+  }
+ 
+  #additional data disk
+  ebs_block_device {
+    device_name           = "/dev/xvdb"
+    volume_size           = "10"
+    volume_type           = "gp2"
+    delete_on_termination = true
+  }
+ 
+  user_data = <<-EOF
+        #!/bin/bash
+        sudo yum install httpd -y
+        sudo systemctl start httpd
+        sudo systemctl enable httpd
+        echo "<h1>custom  webserver using terraform</h1>" | sudo tee /var/www/html/index.html
+  EOF
+  tags = {
+    Name     = "hello-India"
+    Stage    = "testing"
+    Location = "India"
+  }
+}
+
+******************************************************************************************************
+
+
+   1  terraform init
+   2  terraform fmt
+   3  terraform validate
+   4  terraform plan
+   5  terraform apply
+
+
+  **************************************************************************************************************************************************************************
+
+
+
+  
+Create EC2 instance for terraform:
+
+    1  sudo dnf install -y dnf-plugins-core
+    2  sudo dnf config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+    3  sudo dnf -y install terraform
+    4  terraform -v
+    5  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    6  unzip awscliv2.zip
+    7  sudo ./aws/install
+    8  aws configure
+    9  cd .aws/
+   10  ll
+   11  cat config
+   12  cat credentials
+   13  cd
+   14  mkdir terra
+   15  cd terra/
+   16  vim ec2.tf
+
+***********************************************************************************************************************
+provider "aws" {
+
+  region = "us-east-1"
+
+}
+
+#This is VPC code
+
+resource "aws_vpc" "test-vpc" {
+
+  cidr_block = "10.0.0.0/16"
+
+}
+
+# this is Subnet code
+
+resource "aws_subnet" "public-subnet" {
+
+  vpc_id = aws_vpc.test-vpc.id
+
+  availability_zone = "us-east-1a"
+
+  cidr_block = "10.0.0.0/24"
+
+  tags = {
+
+    Name = "Public-subnet"
+
+  }
+
+}
+
+
+resource "aws_subnet" "private-subnet" {
+
+  vpc_id = aws_vpc.test-vpc.id
+
+  availability_zone = "us-east-1a"
+
+  cidr_block = "10.0.1.0/24"
+
+  tags = {
+
+    Name = "Private-subnet" #security group
+
+  }
+
+}
+
+resource "aws_security_group" "test_access" {
+
+  name = "test_access"
+
+  vpc_id = aws_vpc.test-vpc.id
+
+  description = "allow ssh and http"
+
+  ingress {
+
+    from_port = 80
+
+    to_port = 80
+
+    protocol = "tcp"
+
+    cidr_blocks = ["0.0.0.0/0"]
+
+  }
+
+  ingress {
+
+    from_port = 22
+
+    to_port = 22
+
+    protocol = "tcp"
+
+    cidr_blocks = ["0.0.0.0/0"]
+
+  }
+
+  egress {
+
+    from_port = 0
+
+    to_port = 0
+
+    protocol = "-1"
+
+    cidr_blocks = ["0.0.0.0/0"]
+
+  }
+
+
+}
+
+#security group end here#internet gateway code
+
+resource "aws_internet_gateway" "test-igw" {
+
+  vpc_id = aws_vpc.test-vpc.id
+
+  tags = {
+
+    Name = "test-igw"
+
+  }
+
+}
+
+
+#Public route table code
+
+resource "aws_route_table" "public-rt" {
+
+  vpc_id = aws_vpc.test-vpc.id
+
+  route {
+
+    cidr_block = "0.0.0.0/0"
+
+    gateway_id = aws_internet_gateway.test-igw.id
+
+  }
+
+
+  tags = {
+
+    Name = "public-rt"
+
+  }
+
+}
+
+#route Tatable assosication code
+
+resource "aws_route_table_association" "public-asso" {
+
+  subnet_id = aws_subnet.public-subnet.id
+
+  route_table_id = aws_route_table.public-rt.id
+
+}
+
+#ec2 code
+
+resource "aws_instance" "bala-server" {
+
+  ami = "ami-05ffe3c48a9991133"
+
+  subnet_id = aws_subnet.public-subnet.id
+
+  instance_type = "t2.micro"
+
+  security_groups = ["${aws_security_group.test_access.id}"]
+
+  key_name = "bala-key-pair-name"
+
+  tags = {
+
+    Name = "test-World"
+
+    Stage = "testing"
+
+    Location = "chennai"
+
+  }
+
+}
+
+
+##create an EIP for EC2
+
+resource "aws_eip" "bala-ec2-eip" {
+
+  instance = aws_instance.bala-server.id
+
+}
+
+#ssh keypair code
+
+resource "aws_key_pair" "ltimindtree" {
+
+  key_name = "ltikey_bk"
+
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCrBs2HxMhFfwpY7l3LrvDXomwrEJipEP2+Cw61GHgRuGFpfFAjOBt9OBv1VYf+pUrgILRMZ5FoMQZpvQ+cUAWkvXcRr9AiAM8J/cvW9DngMpV6OfSQTSLoUk+caCFM2TEEs6UPZgzkZHCQZqxgtmkQsU9amf1OzYOTffID0sS2gU+z26c9WrDZp66OpY3QUi6MEcD1vzhLmyS6cnOZjxMuWs9Aqa3Q76uc2MPGf/1B8Sjq4zECjPf20NOTF+ijYvYYoHTrBkVb+XB9F0qqam/TvssZ9KtUTo/gj0mJcBLk31yQJKo8nRNwKD7d+Ac6Ce0KajVEYrz8FCcJhpqcENpKkH8HAn9+IsvZ3rZuQmDioVHB/pBuIi9SQ46GOrl3D4WcxRFIBxDyp4+W6nIpzgqebRxaJKT4utYG5A80cFFbPuI8aRPdRFdZMExE1/Fb2FFzTmYyan+5/5EuK+c/Pd2Ocn7X6eyKmpZSg74NFtd/CLljXQQL6D5gn1GMCdWRzWM= root@terraform.example.com"
+}
+
+resource "aws_instance" "database-server" {
+
+  ami = "ami-05ffe3c48a9991133"
+
+  subnet_id = aws_subnet.private-subnet.id
+
+  instance_type = "t2.micro"
+
+  security_groups = ["${aws_security_group.test_access.id}"]
+
+  key_name = "ltikey_bk"
+
+  tags = {
+
+    Name = "db-World"
+
+    Stage = "stage-base"
+
+    Location = "delhi"
+
+  }
+
+}
+
+##create a public ip for Nat gateway
+
+resource "aws_eip" "nat-eip" {
+
+}
+
+### create Nat gateway
+
+resource "aws_nat_gateway" "my-ngw" {
+
+  allocation_id = aws_eip.nat-eip.id
+
+  subnet_id = aws_subnet.public-subnet.id
+
+}
+
+#create private route table
+
+resource "aws_route_table" "private-rt" {
+
+  vpc_id = aws_vpc.test-vpc.id
+
+  route {
+
+    cidr_block = "0.0.0.0/0"
+
+    gateway_id = aws_nat_gateway.my-ngw.id
+
+  }
+
+
+  tags = {
+
+    Name = "private-rt"
+
+  }
+
+}
+
+##route Tatable assosication code
+
+resource "aws_route_table_association" "private-asso" {
+
+  subnet_id = aws_subnet.private-subnet.id
+
+  route_table_id = aws_route_table.private-rt.id
+
+}
+
+
+************************************************************************************************************************************
+
+   1  terraform init
+   2  terraform fmt
+   3  terraform validate
+   4  terraform plan
+   5  terraform apply
+
+  ****************************************************************************************************************************************************************
